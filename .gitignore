@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+L2.ipynb
+L3.ipynb
+L4.ipynb
+L5.ipynb
+
+# macOS
+.DS_Store
+
+# Conda / virtual environments
+.venv/
+venv/
+env/
+
+# Data
+tinystories_data/
+
+# Model checkpoints / experiments
+*.orbax/
+checkpoints/
+experiments/*/checkpoints/
+
+# Optional generated logs
+*.log
+
+#PyCharm
+.idea/
