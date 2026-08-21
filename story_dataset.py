@@ -82,6 +82,7 @@ def load_stories_from_file(
 
 def load_and_preprocess_data(
     file_path,
+    tokenizer,
     batch_size,
     maxlen,
     max_stories = 100_000,
@@ -152,7 +153,6 @@ def load_and_preprocess_data(
     print(f"Estimated batches per epoch: {estimated_batches_per_epoch:,}")
 
     # Create efficient dataset
-    tokenizer = tiktoken.get_encoding("gpt2")
     dataset = StoryDataset(stories, maxlen, tokenizer)
 
     # Configure sampler with sharding support

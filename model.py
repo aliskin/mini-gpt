@@ -1,14 +1,13 @@
+import jax
 import jax.numpy as jnp
 import flax.nnx as nnx
-import tiktoken
-
-
-tokenizer = tiktoken.get_encoding("gpt2")
 
 
 class TransformerBlock(nnx.Module):
 
     def __init__(self, embed_dim, num_heads, ff_dim, *, rngs):
+        self.norm1 = nnx.LayerNorm(embed_dim, rngs=rngs)
+
         self.attention = nnx.MultiHeadAttention(
             num_heads=num_heads,
             in_features=embed_dim,
@@ -18,9 +17,20 @@ class TransformerBlock(nnx.Module):
             rngs=rngs
         )
 
+        self.norm2 = nnx.LayerNorm(embed_dim, rngs=rngs)
+
+        self.ff1 = nnx.Linear(embed_dim, ff_dim, rngs=rngs)
+        self.ff2 = nnx.Linear(ff_dim, embed_dim, rngs=rngs)
+
     def __call__(self, x, mask=None):
-        attn_out = self.attention(x, mask=mask)
+        attn_out = self.attention(self.norm1(x), mask=mask)
         x = x + attn_out
+
+        # Feed-forward sub-layer
+        ff_out = self.ff1(self.norm2(x))
+        ff_out = jax.nn.gelu(ff_out)
+        ff_out = self.ff2(ff_out)
+        x = x + ff_out
         return x
 
 

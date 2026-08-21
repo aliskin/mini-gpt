@@ -2,6 +2,7 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
+import tiktoken
 
 import jax
 import jax.numpy as jnp
@@ -80,7 +81,13 @@ def loss_fn(model, batch):
         token_losses * loss_mask
     ).sum() / loss_mask.sum()
 
-    return loss, logits
+    predictions = jnp.argmax(logits, axis=-1)
+
+    correct = (predictions == targets) * loss_mask
+
+    accuracy = correct.sum() / loss_mask.sum()
+
+    return loss, (logits, accuracy)
 
 
 # ---------------------------------------------------------------------
@@ -91,11 +98,11 @@ def loss_fn(model, batch):
 def train_step(model, optimizer, batch):
     grad_fn = nnx.value_and_grad(loss_fn, has_aux=True)
 
-    (loss, _), grads = grad_fn(model, batch)
+    (loss, (logits, accuracy)), grads = grad_fn(model, batch)
 
     optimizer.update(grads)
 
-    return loss
+    return loss, accuracy
 
 
 # ---------------------------------------------------------------------
@@ -146,9 +153,10 @@ def train(config):
 
 
     # ----- dataset -----
-
+    tokenizer = tiktoken.get_encoding("gpt2")
     text_dl, batches_per_epoch = load_and_preprocess_data(
         file_path=config["data"],
+        tokenizer=tokenizer,
         batch_size=config["batch_size"],
         maxlen=config["maxlen"],
         max_stories=config["max_stories"],
@@ -159,9 +167,10 @@ def train(config):
 
 
     # ----- model -----
-
+    vocab_size = tokenizer.n_vocab
     model = MiniGPT(
         maxlen=config["maxlen"],
+        vocab_size=vocab_size,
         embed_dim=config["embed_dim"],
         num_heads=config["num_heads"],
         feed_forward_dim=config["ff_dim"],
@@ -213,7 +222,7 @@ def train(config):
 
             batch = prepare_batch(batch)
 
-            loss = train_step(
+            loss, accuracy = train_step(
                 model,
                 optimizer,
                 batch
@@ -232,6 +241,7 @@ def train(config):
                     "epoch": epoch + 1,
                     "step": global_step,
                     "loss": mean_loss,
+                    "accuracy": float(accuracy),
                     "learning_rate": current_lr,
                 }
 
@@ -240,6 +250,7 @@ def train(config):
                 print(
                     f"step={global_step:5d} "
                     f"loss={mean_loss:.4f} "
+                    f"accuracy={accuracy:.4f} "
                     f"lr={current_lr:.2e}"
                 )
 
