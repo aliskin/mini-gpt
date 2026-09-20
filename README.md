@@ -61,23 +61,21 @@ Training uses:
 
 ## Evaluation
 
-Training now reserves 10% of the loaded stories for validation. The split uses
-`--split-seed 123`, independently of the model seed. Identical story texts are
-removed before splitting to avoid duplicate leakage. Use the same input file,
-`--max-stories`, `--validation-fraction`, and `--split-seed` for every comparison.
-With 25K distinct stories, the default split gives 22,500 training and 2,500
-validation stories; `--max-stories` describes the total before splitting.
+10% of the loaded stories are reserved for validation. Identical story texts are
+removed before splitting to avoid duplicate leakage. Generating training and validation 
+datasets uses the following parameters: `--max-stories` (the total number of stories 
+before splitting), `--validation-fraction` (a percentage of data used for validation), 
+and `--split-seed`. With 25K distinct stories, the default split gives 22,500 training 
+and 2,500 validation stories.
 
-After each epoch the model is evaluated on the entire validation split, including
-the last partial batch. Validation performs no gradient or optimizer updates.
-Padding and positions without a real next-token target are excluded throughout.
+After each epoch, the model is evaluated on the entire validation split, including
+the last partial batch. Padding and positions without a real next-token target are 
+excluded throughout.
 
-- **Loss**: mean next-token cross-entropy in natural log units; lower is better.
-- **Accuracy**: fraction of valid targets matched by the highest-logit token;
-  higher is better.
+- **Loss**: mean next-token cross-entropy in natural log units.
+- **Accuracy**: fraction of valid targets matched by the highest-logit token.
 - **Perplexity**: `exp(loss)`; lower is better. For example, loss 2 corresponds
-  to perplexity about 7.39. It is a transformation of loss, not an independent
-  signal. Compare it using the same tokenizer, context length, and held-out data.
+  to perplexity about 7.39.
 
 Both loss and accuracy are weighted by valid token counts across batches.
 Perplexity is calculated after aggregating loss, rather than averaging batch
@@ -99,21 +97,8 @@ records (`loss`, `accuracy`, `perplexity`, `tokens`, and `learning_rate`).
 `val_loss`, `val_accuracy`, `val_perplexity`, and token counts after every epoch.
 `split.json` records the split sizes and settings.
 
-`Evaluation.ipynb` includes a comparison cell for these epoch metrics. Generated
-text from fixed prompts remains useful as a qualitative check. Old training
-results used all stories, so rerun baselines with the new split for a fair
-comparison. An experiment name is only a label: use the variant config with `--config`
-to select its architecture. Evaluation reconstructs each model from its saved
-configuration and checkpoint metadata.
-
-The training loop now consumes exactly one pass through training data per epoch;
-previously the loader and the outer loop both requested multiple epochs.
-
-Run the metric checks in your project environment with:
-
-```sh
-python -m unittest discover -s tests -v
-```
+Check `Evaluation.ipynb` to see a comparison of the three architectures using epoch metrics
+as a quantitative check as well as generated texts from fixed prompts as a qualitative check. 
 
 ## Acknowledgements
 
@@ -122,3 +107,5 @@ The original implementation and training workflow are based on the DeepLearning.
 **[Build and Train an LLM with JAX](https://www.deeplearning.ai/courses/build-and-train-an-llm-with-jax/)**
 
 The course was extremely helpful as a practical introduction to implementing and training a small language model with JAX and Flax NNX.
+
+Special thanks to CodeX and my first experience with vibe coding :)
