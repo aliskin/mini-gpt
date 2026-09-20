@@ -10,6 +10,10 @@ I am extending that code incrementally to better understand individual Transform
 
 ## Current experiments
 
+The next controlled comparison is described in [EXPERIMENTS.md](./EXPERIMENTS.md):
+attention with pre-LayerNorm, adding an FFN, and adding final LayerNorm.
+Each run has a config file that can be passed directly to `train.py --config`.
+
 The main experiments so far compare progressively more complete Transformer blocks:
 
 - multi-head causal self-attention with residual connections
@@ -57,13 +61,59 @@ Training uses:
 
 ## Evaluation
 
-The project currently focuses on simple comparisons between model variants using:
+Training now reserves 10% of the loaded stories for validation. The split uses
+`--split-seed 123`, independently of the model seed. Identical story texts are
+removed before splitting to avoid duplicate leakage. Use the same input file,
+`--max-stories`, `--validation-fraction`, and `--split-seed` for every comparison.
+With 25K distinct stories, the default split gives 22,500 training and 2,500
+validation stories; `--max-stories` describes the total before splitting.
 
-- training loss
-- next-token accuracy
-- generated text from a fixed set of prompts
+After each epoch the model is evaluated on the entire validation split, including
+the last partial batch. Validation performs no gradient or optimizer updates.
+Padding and positions without a real next-token target are excluded throughout.
 
-See [`Evaluation.ipynb`](./Evaluation.ipynb) for plots and generation examples.
+- **Loss**: mean next-token cross-entropy in natural log units; lower is better.
+- **Accuracy**: fraction of valid targets matched by the highest-logit token;
+  higher is better.
+- **Perplexity**: `exp(loss)`; lower is better. For example, loss 2 corresponds
+  to perplexity about 7.39. It is a transformation of loss, not an independent
+  signal. Compare it using the same tokenizer, context length, and held-out data.
+
+Both loss and accuracy are weighted by valid token counts across batches.
+Perplexity is calculated after aggregating loss, rather than averaging batch
+perplexities. Training metrics are measured as weights change during the epoch;
+validation metrics describe the model at the end of that epoch.
+
+For example, run the current FFN model with:
+
+```sh
+python train.py --name ffn_validation_25k_256 \
+  --data tinystories_data/TinyStories-25000.txt \
+  --max-stories 25000 --maxlen 256 --epochs 3 \
+  --validation-fraction 0.1 --split-seed 123 --seed 42
+```
+
+Use a new experiment name for each run. `metrics.json` retains training-window
+records (`loss`, `accuracy`, `perplexity`, `tokens`, and `learning_rate`).
+`epoch_metrics.json` records `train_loss`, `train_accuracy`, `train_perplexity`,
+`val_loss`, `val_accuracy`, `val_perplexity`, and token counts after every epoch.
+`split.json` records the split sizes and settings.
+
+`Evaluation.ipynb` includes a comparison cell for these epoch metrics. Generated
+text from fixed prompts remains useful as a qualitative check. Old training
+results used all stories, so rerun baselines with the new split for a fair
+comparison. An experiment name is only a label: use the variant config with `--config`
+to select its architecture. Evaluation reconstructs each model from its saved
+configuration and checkpoint metadata.
+
+The training loop now consumes exactly one pass through training data per epoch;
+previously the loader and the outer loop both requested multiple epochs.
+
+Run the metric checks in your project environment with:
+
+```sh
+python -m unittest discover -s tests -v
+```
 
 ## Acknowledgements
 

@@ -1,0 +1,6 @@
+{
+  "train_stories": 22500,
+  "validation_stories": 2500,
+  "split_seed": 123,
+  "validation_fraction": 0.1
+}

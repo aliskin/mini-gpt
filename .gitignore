@@ -30,3 +30,9 @@ experiments/*/checkpoints/
 
 #PyCharm
 .idea/
+
+# Local Gradio state (may contain certificates)
+.gradio/
+
+# Disposable experiment smoke runs
+experiments/smoke*/

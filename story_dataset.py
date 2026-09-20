@@ -1,6 +1,5 @@
 import grain.python as pygrain
 from pathlib import Path
-import tiktoken
 
 
 class StoryDataset:
@@ -95,6 +94,7 @@ def load_and_preprocess_data(
 
     Args:
         file_path: Path to the text file
+        tokenizer: Tokenizer to use
         batch_size: Batch size for training
         maxlen: Maximum sequence length
         max_stories: Maximum number of stories to load (for memory efficiency)
@@ -106,56 +106,22 @@ def load_and_preprocess_data(
         Tuple of (Grain DataLoader, estimated_batches_per_epoch)
     """
 
-    # Load and validate file
-    file_path = file_path
+    stories = load_stories_from_file(file_path, max_stories)
+    loader = create_dataloader(
+        stories, tokenizer, batch_size, maxlen,
+        num_epochs=num_epochs, shuffle=shuffle, seed=seed,
+    )
+    return loader, len(stories) // batch_size
 
-    print(f"Loading data from {file_path} (max {max_stories:,} stories)")
 
-    # Read file in chunks to avoid loading entire file into memory
-    stories = []
-    current_story = []
-
-    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-        for line in f:
-            if '<|endoftext|>' in line:
-                # Split on end token and process parts
-                parts = line.split('<|endoftext|>')
-                for i, part in enumerate(parts[:-1]):  # All but last part have end tokens
-                    current_story.append(part)
-                    story_text = ''.join(current_story).strip()
-                    if story_text:
-                        stories.append(story_text + '<|endoftext|>')
-                        if len(stories) >= max_stories:
-                            break
-                    current_story = []
-
-                # Last part becomes start of next story
-                if parts[-1].strip():
-                    current_story = [parts[-1]]
-
-                if len(stories) >= max_stories:
-                    break
-            else:
-                current_story.append(line)
-
-        # Don't forget the last story if file doesn't end with end token
-        if current_story and len(stories) < max_stories:
-            story_text = ''.join(current_story).strip()
-            if story_text:
-                stories.append(story_text + '<|endoftext|>')
-
-    print(f"Loaded {len(stories):,} stories")
-    if len(stories) == 0:
+def create_dataloader(
+    stories, tokenizer, batch_size, maxlen, *,
+    num_epochs=1, shuffle=False, seed=42, drop_remainder=True,
+):
+    """Create a loader; retain partial batches when evaluating validation data."""
+    if not stories:
         raise ValueError("No valid stories found in the dataset")
-
-    # Calculate estimated batches per epoch
-    estimated_batches_per_epoch = len(stories) // batch_size
-    print(f"Estimated batches per epoch: {estimated_batches_per_epoch:,}")
-
-    # Create efficient dataset
     dataset = StoryDataset(stories, maxlen, tokenizer)
-
-    # Configure sampler with sharding support
     sampler = pygrain.IndexSampler(
         num_records=len(dataset),
         shuffle=shuffle,
@@ -163,15 +129,23 @@ def load_and_preprocess_data(
         shard_options=pygrain.NoSharding(),
         num_epochs=num_epochs,
     )
-
-    # Create DataLoader with efficient batching
-    dataloader = pygrain.DataLoader(
+    return pygrain.DataLoader(
         data_source=dataset,
         sampler=sampler,
-        operations=[
-            pygrain.Batch(batch_size=batch_size, drop_remainder=True)
-        ]
+        operations=[pygrain.Batch(batch_size=batch_size, drop_remainder=drop_remainder)],
     )
 
-    print(f"Created DataLoader with batch_size={batch_size}, maxlen={maxlen}")
-    return dataloader, estimated_batches_per_epoch
+
+def split_stories(stories, validation_fraction=0.1, seed=42):
+    """Split whole stories reproducibly, independently of the model/training seed."""
+    import random
+
+    if not 0 < validation_fraction < 1:
+        raise ValueError("validation_fraction must be between 0 and 1")
+    # Keep identical story texts together so duplicates cannot leak across splits.
+    unique_stories = list(dict.fromkeys(stories))
+    if len(unique_stories) < 2:
+        raise ValueError("Need at least two distinct stories for train/validation")
+    random.Random(seed).shuffle(unique_stories)
+    count = min(len(unique_stories) - 1, max(1, int(len(unique_stories) * validation_fraction)))
+    return unique_stories[count:], unique_stories[:count]

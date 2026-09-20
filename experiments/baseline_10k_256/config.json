@@ -1,0 +1,18 @@
+{
+  "name": "baseline_10k_256",
+  "data": "tinystories_data/TinyStories-10000.txt",
+  "max_stories": 10000,
+  "maxlen": 256,
+  "batch_size": 32,
+  "epochs": 3,
+  "embed_dim": 192,
+  "num_heads": 6,
+  "ff_dim": 512,
+  "num_blocks": 6,
+  "learning_rate": 0.0003,
+  "end_learning_rate": 0.00001,
+  "warmup_fraction": 0.1,
+  "weight_decay": 0.01,
+  "log_every": 50,
+  "seed": 42
+}
